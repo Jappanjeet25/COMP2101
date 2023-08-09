@@ -12,25 +12,20 @@ param(
       [switch]$network
       )
 
-if($system){
+if($system)
+{
     Get-ProcessorDetails
     Get-OSDetails
     Get-RAMSummary
     Get-VideoCardDetails
-    exit(0)
-}
-
-if($disks){
+}elseif($disks)
+{
     Get-PhysicalDrivesSummary
-    exit(0)
-}
-
-if($network){
+}elseif($network)
+{
     Get-NetworkSummary
-    exit(0)
-}
-
-else{
+}else
+{
     Get-SystemHardwareDetail
     Get-OSDetails
     Get-ProcessorDetails 
@@ -64,7 +59,8 @@ function Get-OSDetails
 	Write-Host "......................................................"
 
 	$OSInfo = Get-CIMInstance win32_operatingsystem
-	$OSInfo | Select-Object -Property @{l='Operating System Name';e={$_.Caption}}, @{l='Version Number';e={$_.Version}} | Format-List
+	$OSInfo | Select-Object -Property @{l='Operating System Name';e={$_.Caption}}, 
+                                      @{l='Version Number';e={$_.Version}} | Format-List
 }
 
 # Include processor description with speed, number of cores, and sizes of the L1, L2, and L3 caches if they are present (win32_processor)
@@ -76,7 +72,31 @@ function Get-ProcessorDetails
 	Write-Host "......................................................"
 
 	$ProcessorDesc = Get-CIMInstance win32_processor
-	$ProcessorDesc | Select-Object -Property Description, CurrentClockSpeed, MaxClockSpeed, NumberOfCores, L2CacheSize, L3CacheSize | Format-List
+    $L1Cache = Get-CIMInstance win32_cachememory 
+	$ProcessorDesc | Select-Object -Property Description,
+                                             @{l='Maximum Clock Speed';e={"$($_.MaxClockSpeed) MHz"}}, 
+                                             NumberOfCores,
+                                             @{l='L1 Cache Size';e={if($_.L1Cache.MaxCacheSize)
+                                                               {
+                                                                    "$($_.L1Cache.MaxCacheSize) KBs" 
+                                                               }else{
+                                                                    "N/A"
+                                                               }
+                                                               }}, 
+                                             @{l='L2 Cache Size';e={if($_.L2CacheSize)
+                                                               {
+                                                                    "$($_.L2CacheSize) KBs" 
+                                                               }else{
+                                                                    "N/A"
+                                                               }
+                                                               }}, 
+                                             @{l='L3 Cache Size';e={if($_.L3CacheSize)
+                                                               {
+                                                                    "$($_.L3CacheSize) KBs" 
+                                                               }else{
+                                                                    "N/A"
+                                                               }
+                                                               }} | Format-List
 }
 
 # Include a summary of the RAM installed with the vendor, description, size, and bank and slot for each DIMM 
@@ -88,13 +108,19 @@ function Get-RAMSummary
 	Write-Host "RAM SUMMARY :"
 	Write-Host "......................................................"
 
-	$RAMInfo = Get-CIMInstance win32_physicalmemory
+    $SysInfo = Get-CIMInstance win32_computersystem 
+	
+    $RAMInfo = Get-CIMInstance win32_physicalmemory
 	$RAMInfo | Select-Object -Property @{l='Vendor';e={$_.Manufacturer}}, 
 									   Description, 
-									   @{l='Size';e={"$($_.Capacity / 1GB -as [int]) GB(s)"}}, 
-									   DeviceLocator | Format-Table -AutoSize
+									   @{l='Size';e={"$($_.Capacity / 1GB -as [int]) GB(s)"}},
+                                       @{l='Bank';e={$_.BankLabel}}, 
+									   @{l='Slot';e={$_.DeviceLocator}} | Format-Table -AutoSize
 
-	Write-Host "Total Installed Ram is : $(($SystemInfo.TotalPhysicalMemory / 1GB -as [int])+1) GB(s) `n"
+	
+    $TotalRAM = "{0:N2}" -f ($SysInfo.TotalPhysicalMemory / 1GB)
+    Write-Host "Total Installed Ram is : $TotalRAM GB(s) `n"
+
 }
 
 # Include a summary of the physical disk drives with their vendor, model, size, and space usage (size, free space, and percentage free)
@@ -117,7 +143,7 @@ function Get-PhysicalDrivesSummary
 				$logicaldisks = $partition | Get-CimAssociatedInstance -resultclassname CIM_logicaldisk
 				foreach ($logicaldisk in $logicaldisks) {
 						 
-									$diskInfo += [PSCustomObject]@{"Vendor"= $disk.Manufacturer
+									$diskInfo += [PSCustomObject]@{"Vendor"= $disk.Model.Split(" ")[0]
 																   "Model"= $disk.Model
 																   "Size(GB)"= $logicaldisk.Size / 1GB -as [int]
 																   "Free Space(GB)" = $logicalDisk.FreeSpace / 1GB -as [int]
@@ -134,25 +160,25 @@ function Get-NetworkSummary
 {
 # Include your network adapter configuration report from lab 3
 
-	Write-Host "......................................................"
-	Write-Host "NETWORK SUMMARY :"
-	Write-Host "......................................................"
+Write-Host "......................................................"
+Write-Host "Network Summary :"
+Write-Host "......................................................"
 
 
-	$netReport = get-ciminstance win32_networkadapterconfiguration 
-	$netReport | Where-Object ipenabled -EQ True | Format-Table Description,
-																Index, 
-																@{l='IP Address(es)';e={$_.IPAddress}}, 
-																@{l='Subnet Mask(s)';e={$_.IPSubnet}}, 
-																@{l='DNS Domain Name';e={$_.DNSHostName}},
-																@{l='DNS Server';e={if($_.DNSDomain)
-																					{
-																						$_.DNSDomain
-																					}else
-																					{
-																						"N/A"
-																					}
-																					}} -AutoSize 
+$netReport = get-ciminstance win32_networkadapterconfiguration 
+$netReport | Where-Object ipenabled -EQ True | Format-Table Description,
+                                                            Index, 
+                                                            @{l='DNS Domain Name';e={$_.DNSHostName}},
+                                                            @{l='DNS Server';e={if($_.DNSDomain)
+                                                                                {
+                                                                                    $_.DNSDomain
+                                                                                }else
+                                                                                {
+                                                                                    "N/A"
+                                                                                }
+                                                                                }},
+                                                            @{l='Subnet Mask(s)';e={$_.IPSubnet -join "`n" }},
+                                                            @{l='IP Address(es)';e={$_.IPAddress -join "`n"}} -AutoSize -Wrap
 
 }
 

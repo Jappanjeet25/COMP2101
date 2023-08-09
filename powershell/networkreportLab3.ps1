@@ -9,15 +9,15 @@ Write-Host "......................................................"
 $netReport = get-ciminstance win32_networkadapterconfiguration 
 $netReport | Where-Object ipenabled -EQ True | Format-Table Description,
                                                             Index, 
-                                                            @{l='IP Address(es)';e={$_.IPAddress}}, 
-                                                            @{l='Subnet Mask(s)';e={$_.IPSubnet}}, 
                                                             @{l='DNS Domain Name';e={$_.DNSHostName}},
                                                             @{l='DNS Server';e={if($_.DNSDomain)
                                                                                 {
                                                                                     $_.DNSDomain
                                                                                 }else
                                                                                 {
-                                                                                    "NULL"
+                                                                                    "N/A"
                                                                                 }
-                                                                                }} -AutoSize   
+                                                                                }},
+                                                            @{l='Subnet Mask(s)';e={$_.IPSubnet -join "`n" }},
+                                                            @{l='IP Address(es)';e={$_.IPAddress -join "`n"}} -AutoSize -Wrap
 
